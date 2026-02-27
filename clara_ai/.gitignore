@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Environment secrets – never commit
+backend/.env
+.env
+**/env/
+backend/reports/
+temp_audio.*

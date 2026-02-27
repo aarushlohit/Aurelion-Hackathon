@@ -1,0 +1,20 @@
+# Secrets – never commit real .env files
+**/.env
+**/*.env
+**/env/
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+*.egg-info/
+.eggs/
+
+# Reports (generated at runtime)
+clara_ai/backend/reports/
+
+# Temp audio
+clara_ai/temp_audio.*
+
+# Flutter build
+clara_ai/build/

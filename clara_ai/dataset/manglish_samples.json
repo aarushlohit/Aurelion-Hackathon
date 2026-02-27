@@ -1,0 +1,72 @@
+[
+  {
+    "text": "Motor-il valiya sound varunnu, capacitor-o bearing-o nokkanam.",
+    "expected_intent": "report_noise",
+    "expected_device": "motor pump",
+    "expected_symptom": "noise",
+    "notes": "Malayalam-English mix; Kerala rural; pump operator"
+  },
+  {
+    "text": "Fan vibrate cheyyunnu, bearing problem aayi teerum.",
+    "expected_intent": "report_vibration",
+    "expected_device": "fan",
+    "expected_symptom": "vibration",
+    "notes": "Malayalam-English; household; Thrissur dialect"
+  },
+  {
+    "text": "Ente phone-inte battery veg-il teerunnnu, drain problem undo?",
+    "expected_intent": "report_low_battery",
+    "expected_device": "phone",
+    "expected_symptom": "low battery",
+    "notes": "Malayalam-English; youth; Kochi colloquial"
+  },
+  {
+    "text": "Transformer valuthu choodan, overload aayirukkam, shutdown cheyyenda.",
+    "expected_intent": "report_overheating",
+    "expected_device": "transformer",
+    "expected_symptom": "overheating",
+    "notes": "Malayalam-English; KSEB lineman; urgent"
+  },
+  {
+    "text": "AC cool cheyyunnilla, filter clean cheyyanam.",
+    "expected_intent": "report_not_working",
+    "expected_device": "AC",
+    "expected_symptom": "not working",
+    "notes": "Malayalam-English; domestic; Trivandrum register"
+  },
+  {
+    "text": "Inverter-il charge aagunnilla, circuit board nokkan parayunnu.",
+    "expected_intent": "report_charging_failure",
+    "expected_device": "inverter",
+    "expected_symptom": "charging failure",
+    "notes": "Malayalam-English; semi-urban; Palakkad"
+  },
+  {
+    "text": "Compressor start aagunnilla, wiring-il entho problem undavum.",
+    "expected_intent": "report_not_working",
+    "expected_device": "compressor",
+    "expected_symptom": "not working",
+    "notes": "Malayalam-English; factory; Ernakulam"
+  },
+  {
+    "text": "Motor pump-il current koodum, short circuit aayirukkam.",
+    "expected_intent": "report_overheating",
+    "expected_device": "motor pump",
+    "expected_symptom": "overheating",
+    "notes": "Malayalam-English; irrigation; Alappuzha delta dialect"
+  },
+  {
+    "text": "Phone charge aagunnilla, fast charger ittalum same problem.",
+    "expected_intent": "report_charging_failure",
+    "expected_device": "phone",
+    "expected_symptom": "charging failure",
+    "notes": "Malayalam-English; urban; Kozhikode youth"
+  },
+  {
+    "text": "Fan speed kurayunnu, capacitor weak aayirikkanam.",
+    "expected_intent": "report_not_working",
+    "expected_device": "fan",
+    "expected_symptom": "not working",
+    "notes": "Malayalam-English; residential; Kannur dialect"
+  }
+]

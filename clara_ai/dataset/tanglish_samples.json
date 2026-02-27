@@ -1,0 +1,72 @@
+[
+  {
+    "text": "Indha motor pump-la noise adhikama irukku, capacitor check pannanuma?",
+    "expected_intent": "report_noise",
+    "expected_device": "motor pump",
+    "expected_symptom": "noise",
+    "notes": "Tamil-English mix; rural field technician; Madurai dialect"
+  },
+  {
+    "text": "Fan la romba vibration varudhu, bearing problem-a irukkum.",
+    "expected_intent": "report_vibration",
+    "expected_device": "fan",
+    "expected_symptom": "vibration",
+    "notes": "Tamil-English; household complaint; Chennai colloquial"
+  },
+  {
+    "text": "En phone la battery fast ah drain aaguthu, charging la podum problem irukku.",
+    "expected_intent": "report_low_battery",
+    "expected_device": "phone",
+    "expected_symptom": "low battery",
+    "notes": "Tamil-English; mobile complaint; youth register"
+  },
+  {
+    "text": "Transformer romba heat aaguthu, overload-a irukkum, shutdown pannunga.",
+    "expected_intent": "report_overheating",
+    "expected_device": "transformer",
+    "expected_symptom": "overheating",
+    "notes": "Tamil-English; utility worker; urgent report"
+  },
+  {
+    "text": "AC cooling illama pochu, filter dirty-a irukkum, clean pannanum.",
+    "expected_intent": "report_not_working",
+    "expected_device": "AC",
+    "expected_symptom": "not working",
+    "notes": "Tamil-English; domestic use; summer complaint"
+  },
+  {
+    "text": "Inverter battery full charge aagala, circuit board paarkkanum.",
+    "expected_intent": "report_charging_failure",
+    "expected_device": "inverter",
+    "expected_symptom": "charging failure",
+    "notes": "Tamil-English; power backup system; semi-urban"
+  },
+  {
+    "text": "Compressor start aagala, wiring-la problem irukku pola irukku.",
+    "expected_intent": "report_not_working",
+    "expected_device": "compressor",
+    "expected_symptom": "not working",
+    "notes": "Tamil-English; industrial setting; coimbatore dialect"
+  },
+  {
+    "text": "Motor pump-la romba current varudhu, short circuit pola irukku.",
+    "expected_intent": "report_overheating",
+    "expected_device": "motor pump",
+    "expected_symptom": "overheating",
+    "notes": "Tamil-English; agriculture pump; delta region dialect"
+  },
+  {
+    "text": "Phone charge aagala, fast charger use panninalum same-a irukku.",
+    "expected_intent": "report_charging_failure",
+    "expected_device": "phone",
+    "expected_symptom": "charging failure",
+    "notes": "Tamil-English; urban youth; Chennai slang"
+  },
+  {
+    "text": "Fan speed romba slow-a irukku, capacitor weak-a irukkum.",
+    "expected_intent": "report_not_working",
+    "expected_device": "fan",
+    "expected_symptom": "not working",
+    "notes": "Tamil-English; residential; Tirunelveli dialect"
+  }
+]
