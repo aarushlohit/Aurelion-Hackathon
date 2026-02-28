@@ -182,3 +182,14 @@ class SpeakReportSummaryRequest(BaseModel):
         default=None,
         description="Gender preference for edge-tts voice.",
     )
+
+
+# ── Incident Extraction ───────────────────────────────────────────────────────
+
+
+class IncidentExtractionRequest(BaseModel):
+    transcript_text: str = Field(
+        ...,
+        min_length=10,
+        description="Raw transcript that may contain mixed languages (Tamil+English, etc.)",
+    )

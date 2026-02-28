@@ -6,7 +6,7 @@ import io
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 from fastapi.responses import StreamingResponse
 
 from services.persistence_service import get_report, get_report_md_path, list_reports
@@ -154,4 +154,71 @@ async def analyse_report_text(report_text: str) -> dict:
         raise HTTPException(
             status_code=500,
             detail=f"Executive analysis failed: {str(exc)}"
+        ) from exc
+
+
+# ── Normalized Incident Extraction ────────────────────────────────────────────
+
+
+@router.post("/reports/extract-incident")
+async def extract_incident(request: dict) -> dict:
+    """Extract and normalize mixed-language incident transcripts.
+    
+    Handles code-switching (Tamil+English, Malayalam+English, etc.) and converts
+    raw transcripts into structured incident data with clear English statements.
+    
+    Request Body:
+        transcript_text: Raw transcript (may contain mixed languages/slang)
+        
+        Example: "phone la battery drain aaguthu, mic work aagula, step up transformer short circuit aaduchi"
+    
+    Response:
+        {
+          "normalized_statements": list[str],  # Clear English statements
+          "affected_device": str,              # Device/equipment name
+          "primary_symptom": str,              # Main problem description
+          "severity": str,                     # critical|high|medium|low
+          "recommended_action": str,           # Key action needed
+          "core_summary": str,                 # 2-3 sentence concise summary
+          "confidence": str,                   # high|medium|low
+          "provider": str,                     # groq|deepseek|fallback_regex
+          "model": str,                        # Model used
+          "latency_ms": int                    # Processing time
+        }
+    
+    Example Output:
+        {
+          "normalized_statements": [
+            "The phone battery is draining quickly",
+            "The microphone is not working",
+            "The step-up transformer has a short circuit"
+          ],
+          "affected_device": "Mobile phone",
+          "primary_symptom": "Multiple hardware failures",
+          "severity": "high",
+          "recommended_action": "Immediate hardware inspection and replacement",
+          "core_summary": "The mobile device is experiencing critical hardware failures including battery drain, microphone malfunction, and transformer short circuit. Immediate inspection and component replacement is required to prevent further damage.",
+          "confidence": "high",
+          "provider": "groq",
+          "model": "llama-3.3-70b-versatile",
+          "latency_ms": 1250
+        }
+    """
+    from services.report_summarizer import extract_normalized_incident
+    
+    transcript_text = request.get("transcript_text", "")
+    
+    if not transcript_text or len(transcript_text) < 10:
+        raise HTTPException(
+            status_code=400,
+            detail="transcript_text must be at least 10 characters"
+        )
+    
+    try:
+        return extract_normalized_incident(transcript_text)
+    except Exception as exc:
+        logger.error("Incident extraction failed: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Incident extraction failed: {str(exc)}"
         ) from exc

@@ -472,3 +472,266 @@ def analyse_executive_report(report_text: str) -> dict[str, Any]:
         "latency_ms": fb["latency_ms"],
         "fallback_used": True,
     }
+
+
+# ── Enterprise Incident Extraction with Mixed-Language Normalization ───────────
+
+
+_INCIDENT_EXTRACTION_SYSTEM = (
+    "You are an expert enterprise incident summarization engine for mixed-language field reports.\n\n"
+    "**Your Task:**\n"
+    "1. **Normalization & Segmentation**\n"
+    "   - Parse the raw transcript which may contain mixed languages (Tamil+English), code-switching, or slang\n"
+    "   - Break into separate clear English statements at each comma or natural pause\n"
+    "   - Normalize mixed language/slang tokens into standard English meaning\n"
+    "   - Example: 'phone la battery drain aaguthu' → 'The phone battery is draining quickly'\n\n"
+    "2. **Structured Field Extraction**\n"
+    "   Extract these fields with highest confidence:\n"
+    "   - affected_device: Device/equipment having the issue\n"
+    "   - primary_symptom: Main problem or failure symptom\n"
+    "   - severity: critical | high | medium | low\n"
+    "   - recommended_action: Key action needed to resolve\n\n"
+    "3. **Core Summary Generation**\n"
+    "   - Combine normalized statements and structured fields\n"
+    "   - Produce a 2–3 sentence concise core problem summary in clear English\n"
+    "   - Focus on problem insight and recommended priority actions\n"
+    "   - Do NOT repeat report sections or use markdown\n\n"
+    "4. **Confidence Assessment**\n"
+    "   - Assess overall extraction confidence as high (>0.80), medium (0.60-0.80), or low (<0.60)\n"
+    "   - If confidence < 0.70, generate a short executive fallback summary (1-2 sentences)\n\n"
+    "5. **Output ONLY valid JSON:**\n"
+    "{\n"
+    '  "normalized_statements": ["statement1", "statement2", ...],\n'
+    '  "affected_device": "device name",\n'
+    '  "primary_symptom": "symptom description",\n'
+    '  "severity": "critical|high|medium|low",\n'
+    '  "recommended_action": "action description",\n'
+    '  "core_summary": "2-3 sentence concise summary",\n'
+    '  "confidence": "high|medium|low"\n'
+    "}\n\n"
+    "**Important:**\n"
+    "- Mixed languages (Tamil, Malayalam, Hindi + English) must be interpreted correctly\n"
+    "- Comma-separated segments become separate logical statements\n"
+    "- Focus on meaning and insights, not raw markdown boilerplate\n"
+    "- Never hallucinate — if unsure, mark confidence as low"
+)
+
+_INCIDENT_EXTRACTION_USER_TMPL = (
+    "Analyze and normalize this incident transcript:\n\n"
+    "{transcript_text}\n\n"
+    "Return ONLY the JSON output as specified."
+)
+
+
+def _extract_incident_groq(transcript_text: str) -> dict[str, Any]:
+    """Extract structured incident data via Groq with normalization."""
+    from llm.groq_adapter import call_groq_chat
+    import json
+
+    messages = [
+        {"role": "system", "content": _INCIDENT_EXTRACTION_SYSTEM},
+        {"role": "user", "content": _INCIDENT_EXTRACTION_USER_TMPL.format(transcript_text=transcript_text)},
+    ]
+    
+    t0 = time.perf_counter()
+    result = call_groq_chat(messages, temperature=0.1, max_tokens=1024)
+    latency = int((time.perf_counter() - t0) * 1000)
+
+    content = (result.get("content") or "").strip()
+    if not content:
+        raise ValueError("Groq returned empty response")
+
+    # Parse JSON response
+    try:
+        # Extract JSON from markdown code blocks if present
+        if "```json" in content:
+            content = re.search(r"```json\s*\n(.*?)\n```", content, re.DOTALL).group(1)
+        elif "```" in content:
+            content = re.search(r"```\s*\n(.*?)\n```", content, re.DOTALL).group(1)
+        
+        data = json.loads(content)
+        
+        # Validate required fields
+        required = ["core_summary", "confidence"]
+        for field in required:
+            if field not in data:
+                raise ValueError(f"Missing required field: {field}")
+        
+        # Ensure normalized_statements exists
+        if "normalized_statements" not in data:
+            data["normalized_statements"] = []
+        
+        logger.info(
+            "extract_incident_groq OK: %d statements, %d chars summary, %dms",
+            len(data.get("normalized_statements", [])),
+            len(data["core_summary"]),
+            latency
+        )
+        
+        return {
+            **data,
+            "provider": "groq",
+            "model": result.get("model", "llama-3.3-70b"),
+            "latency_ms": latency,
+        }
+
+    except (json.JSONDecodeError, AttributeError) as e:
+        logger.error("extract_incident_groq JSON parse failed: %s\nContent: %s", e, content[:500])
+        raise ValueError(f"Invalid JSON from Groq: {e}")
+
+
+def _extract_incident_deepseek(transcript_text: str) -> dict[str, Any]:
+    """Extract structured incident data via DeepSeek with normalization."""
+    import httpx
+    import json
+
+    api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY not set")
+
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": _INCIDENT_EXTRACTION_SYSTEM},
+            {"role": "user", "content": _INCIDENT_EXTRACTION_USER_TMPL.format(transcript_text=transcript_text)},
+        ],
+        "temperature": 0.1,
+        "max_tokens": 1024,
+    }
+
+    t0 = time.perf_counter()
+    with httpx.Client(timeout=30.0) as client:
+        resp = client.post(
+            "https://api.deepseek.com/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+    latency = int((time.perf_counter() - t0) * 1000)
+
+    if resp.status_code != 200:
+        raise RuntimeError(f"DeepSeek HTTP {resp.status_code}: {resp.text[:300]}")
+
+    body = resp.json()
+    content = (body["choices"][0]["message"]["content"] or "").strip()
+
+    # Parse JSON response
+    try:
+        if "```json" in content:
+            content = re.search(r"```json\s*\n(.*?)\n```", content, re.DOTALL).group(1)
+        elif "```" in content:
+            content = re.search(r"```\s*\n(.*?)\n```", content, re.DOTALL).group(1)
+        
+        data = json.loads(content)
+        
+        required = ["core_summary", "confidence"]
+        for field in required:
+            if field not in data:
+                raise ValueError(f"Missing required field: {field}")
+        
+        if "normalized_statements" not in data:
+            data["normalized_statements"] = []
+
+        model = body.get("model", "deepseek-chat")
+        logger.info(
+            "extract_incident_deepseek OK: %d statements, model=%s, %dms",
+            len(data.get("normalized_statements", [])),
+            model,
+            latency
+        )
+        
+        return {
+            **data,
+            "provider": "deepseek",
+            "model": model,
+            "latency_ms": latency,
+        }
+
+    except (json.JSONDecodeError, AttributeError) as e:
+        logger.error("extract_incident_deepseek JSON parse failed: %s", e)
+        raise ValueError(f"Invalid JSON from DeepSeek: {e}")
+
+
+def _extract_incident_fallback(transcript_text: str) -> dict[str, Any]:
+    """Fallback incident extraction using regex patterns."""
+    t0 = time.perf_counter()
+    
+    # Simple segmentation at commas and periods
+    segments = re.split(r'[,\.]+', transcript_text)
+    normalized = [s.strip() for s in segments if len(s.strip()) > 5]
+    
+    # Generate basic summary from first 2 segments
+    summary = ". ".join(normalized[:2]) if normalized else transcript_text[:200]
+    if summary and not summary.endswith('.'):
+        summary += '.'
+    
+    latency = int((time.perf_counter() - t0) * 1000)
+    
+    logger.info("extract_incident_fallback (regex): %d statements", len(normalized))
+    
+    return {
+        "normalized_statements": normalized,
+        "affected_device": "Unknown",
+        "primary_symptom": normalized[0] if normalized else "Issue reported",
+        "severity": "medium",
+        "recommended_action": "Requires investigation",
+        "core_summary": summary,
+        "confidence": "low",
+        "provider": "fallback_regex",
+        "model": "none",
+        "latency_ms": latency,
+    }
+
+
+def extract_normalized_incident(transcript_text: str) -> dict[str, Any]:
+    """Extract and normalize mixed-language incident transcripts into structured data.
+    
+    Handles code-switching (Tamil+English, Malayalam+English, etc.) and converts
+    to clear English statements with structured field extraction.
+    
+    Args:
+        transcript_text: Raw transcript (may contain mixed languages/slang)
+    
+    Returns::
+        {
+          "normalized_statements": list[str],  # Clear English statements
+          "affected_device": str,              # Device/equipment name
+          "primary_symptom": str,              # Main problem description
+          "severity": str,                     # critical|high|medium|low
+          "recommended_action": str,           # Key action needed
+          "core_summary": str,                 # 2-3 sentence summary
+          "confidence": str,                   # high|medium|low
+          "provider": str,                     # groq|deepseek|fallback_regex
+          "model": str,
+          "latency_ms": int,
+        }
+    """
+    # Try providers in priority order
+    providers = [
+        ("groq", _extract_incident_groq),
+        ("deepseek", _extract_incident_deepseek),
+    ]
+
+    for name, fn in providers:
+        try:
+            result = fn(transcript_text)
+            
+            # Validate core fields
+            if not result.get("core_summary") or len(result["core_summary"]) < 10:
+                logger.warning("extract_normalized_incident %s: invalid summary, skipping", name)
+                continue
+
+            if result.get("confidence") not in ("high", "medium", "low"):
+                logger.warning("extract_normalized_incident %s: invalid confidence, skipping", name)
+                continue
+
+            return result
+
+        except Exception as exc:
+            logger.warning("extract_normalized_incident %s failed: %s", name, exc)
+            continue
+
+    # All LLM providers failed — use regex fallback
+    return _extract_incident_fallback(transcript_text)
