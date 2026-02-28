@@ -64,7 +64,13 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     setState(() => _isSpeaking = true);
     try {
       final api = ApiService();
-      final audioBytes = await api.speakReport(widget.report.content);
+      // Use the LLM-summarised endpoint: send report_id for persisted reports,
+      // fall back to inline report_text for unsaved ones.
+      final hasPersistedId = widget.report.id.startsWith('CLARA-');
+      final audioBytes = await api.speakReportSummary(
+        reportId: hasPersistedId ? widget.report.id : null,
+        reportText: hasPersistedId ? null : widget.report.content,
+      );
       await _audioPlayer.play(BytesSource(audioBytes));
       _audioPlayer.onPlayerComplete.listen((_) {
         if (mounted) setState(() => _isSpeaking = false);

@@ -33,29 +33,36 @@ class GlassCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: borderRadius ?? defaultRadius,
         border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.5),
+          color: isDark ? Colors.white.withOpacity(0.12) : Colors.white.withOpacity(0.6),
           width: 1.5,
         ),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            isDark ? Colors.white.withOpacity(0.05) : Colors.white.withOpacity(0.4),
-            isDark ? Colors.white.withOpacity(0.02) : Colors.white.withOpacity(0.1),
+            isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.55),
+            isDark ? Colors.white.withOpacity(0.04) : Colors.white.withOpacity(0.25),
           ],
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            spreadRadius: -5,
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+            blurRadius: 24,
+            spreadRadius: -4,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(isDark ? 0.02 : 0.5),
+            blurRadius: 8,
+            spreadRadius: -8,
+            offset: const Offset(0, -2),
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: borderRadius ?? defaultRadius,
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Padding(
             padding: padding ?? const EdgeInsets.all(20.0),
             child: child,

@@ -20,12 +20,42 @@ class ApiService {
     throw Exception('process_text failed (${response.statusCode}): ${response.body}');
   }
 
+  /// Like [generateReportFromText] but also returns the raw JSON map.
+  Future<(Report, Map<String, dynamic>)> generateReportFromTextWithJson(String text) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/process_text'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'text': text}),
+        )
+        .timeout(const Duration(seconds: 60));
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      return (Report.fromJson(json), json);
+    }
+    throw Exception('process_text failed (${response.statusCode}): ${response.body}');
+  }
+
   Future<Report> generateReportFromAudio(Uint8List audioBytes, String filename) async {
     final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/process_audio'));
     request.files.add(http.MultipartFile.fromBytes('file', audioBytes, filename: filename));
     final streamed = await request.send().timeout(const Duration(seconds: 120));
     final body = await streamed.stream.bytesToString();
     if (streamed.statusCode == 200) return Report.fromJson(jsonDecode(body));
+    throw Exception('process_audio failed (${streamed.statusCode}): $body');
+  }
+
+  /// Like [generateReportFromAudio] but also returns the raw JSON map.
+  Future<(Report, Map<String, dynamic>)> generateReportFromAudioWithJson(
+      Uint8List audioBytes, String filename) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/process_audio'));
+    request.files.add(http.MultipartFile.fromBytes('file', audioBytes, filename: filename));
+    final streamed = await request.send().timeout(const Duration(seconds: 120));
+    final body = await streamed.stream.bytesToString();
+    if (streamed.statusCode == 200) {
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      return (Report.fromJson(json), json);
+    }
     throw Exception('process_audio failed (${streamed.statusCode}): $body');
   }
 
@@ -127,5 +157,41 @@ class ApiService {
 
     if (response.statusCode == 200) return response.bodyBytes;
     throw Exception('Speak failed (${response.statusCode}): ${response.body}');
+  }
+
+  // ── speak report summary ───────────────────────────────────────────────────
+
+  /// POST /speak_report_summary — LLM-summarised report audio.
+  Future<Uint8List> speakReportSummary({
+    String? reportId,
+    String? reportText,
+    String? userName,
+    String language = 'en',
+    String? gender,
+  }) async {
+    final body = <String, dynamic>{
+      'language': language,
+    };
+    if (reportId != null && reportId.isNotEmpty) body['report_id'] = reportId;
+    if (reportText != null && reportText.isNotEmpty) body['report_text'] = reportText;
+    if (userName != null && userName.isNotEmpty) body['user_name'] = userName;
+    if (gender != null && gender != 'auto') body['gender'] = gender;
+
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/speak_report_summary'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 60));
+
+    debugPrint('[Clara/speak_report_summary] status=${response.statusCode}  '
+        'provider=${response.headers['x-summary-provider']}  '
+        'voice=${response.headers['x-voice-provider']}  '
+        'latency=${response.headers['x-total-latency-ms']}ms  '
+        'bytes=${response.bodyBytes.length}');
+
+    if (response.statusCode == 200) return response.bodyBytes;
+    throw Exception('Speak report summary failed (${response.statusCode}): ${response.body}');
   }
 }

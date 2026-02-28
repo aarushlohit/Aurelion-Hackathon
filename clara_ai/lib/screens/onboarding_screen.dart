@@ -118,7 +118,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                     // Role
                     DropdownButtonFormField<String>(
-                      value: _selectedRole,
+                      initialValue: _selectedRole,
                       decoration: _inputDecoration('Role', context),
                       items: _roles
                           .map((r) => DropdownMenuItem(value: r, child: Text(r)))
@@ -129,7 +129,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                     // Preferred Report Language
                     DropdownButtonFormField<String>(
-                      value: _selectedLanguage,
+                      initialValue: _selectedLanguage,
                       decoration: _inputDecoration('Preferred Report Language', context),
                       items: _languages.entries
                           .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))

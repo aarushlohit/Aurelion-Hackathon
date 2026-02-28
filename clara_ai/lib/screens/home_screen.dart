@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -36,7 +35,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   // ── Mic ───────────────────────────────────────────────────────────────────
   final _audioRecorder = AudioRecorder();
   bool _isRecording = false;
-  String? _recordingPath;
   Uint8List? _recordedBytes;
   int _recordingSeconds = 0;
   Timer? _recordingTimer;
@@ -128,7 +126,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         ),
         path: path,
       );
-      _recordingPath = path;
       _recordingSeconds = 0;
       _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         setState(() => _recordingSeconds++);
@@ -176,12 +173,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final first12 = bytes.length > 12 ? bytes.sublist(0, 12) : bytes;
     final hexStr = first12.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
 
-    debugPrint('[Clara/mic] file=${stoppedPath}  size=${bytes.length} bytes  first12=$hexStr');
+    debugPrint('[Clara/mic] file=$stoppedPath  size=${bytes.length} bytes  first12=$hexStr');
 
     setState(() {
       _isRecording = false;
       _recordedBytes = bytes;
-      _recordingPath = stoppedPath;
       _micStatus = 'done';
     });
   }
@@ -254,16 +250,21 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
       // ── Step 2: pipeline ─────────────────────────────────────────────────
       late final Report report;
+      Map<String, dynamic>? rawJson;
 
       if (hasText && !hasAudio) {
-        report = await api.generateReportFromText(_textController.text.trim());
+        final result = await api.generateReportFromTextWithJson(_textController.text.trim());
+        report = result.$1;
+        rawJson = result.$2;
       } else {
         final bytes = _inputMode == _InputMode.mic ? _recordedBytes! : _uploadedBytes!;
         final filename = _inputMode == _InputMode.mic
             ? 'recording.wav'
             : (_uploadedFilename ?? 'audio.wav');
 
-        report = await api.generateReportFromAudio(bytes, filename);
+        final result = await api.generateReportFromAudioWithJson(bytes, filename);
+        report = result.$1;
+        rawJson = result.$2;
 
         debugPrint('[Clara/process] provider=${report.providerUsed}  '
             'transcript_words=${report.transcriptLength}');
@@ -278,6 +279,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           _debugProvider = report.providerUsed;
           _debugTranscriptWords = report.transcriptLength;
         });
+      }
+
+      // Store full pipeline JSON for Intent Display tab
+      if (mounted) {
+        Provider.of<AppState>(context, listen: false).setLastPipelineJson(rawJson);
       }
 
       if (mounted) {
@@ -392,13 +398,35 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: Text('Hi, $userName 👋'),
+        title: Text(
+          'Hi, $userName 👋',
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 20),
+        ),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              backgroundColor: theme.primaryColor.withOpacity(0.2),
-              child: Icon(Icons.person, color: theme.primaryColor),
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [theme.primaryColor.withOpacity(0.2), theme.primaryColor.withOpacity(0.35)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.primaryColor.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                backgroundColor: Colors.transparent,
+                child: Icon(Icons.person, color: theme.primaryColor),
+              ),
             ),
           ),
         ],
@@ -413,12 +441,51 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Header
-                  Text(
-                    'What would you like to report?',
-                    style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          theme.primaryColor.withOpacity(0.08),
+                          theme.primaryColor.withOpacity(0.02),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: theme.primaryColor.withOpacity(0.15),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.description_rounded,
+                          size: 40,
+                          color: theme.primaryColor,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'What would you like to report?',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.5,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Record, upload, or type your observations',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
 
                   // Mode toggle
                   _buildModeToggle(theme),
@@ -444,20 +511,44 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   if (_isLoading)
                     const SkeletonLoader(width: double.infinity, height: 56)
                   else
-                    ElevatedButton.icon(
-                      onPressed: _generateReport,
-                      icon: const Icon(Icons.auto_awesome),
-                      label: const Text(
-                        'Generate Report',
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        gradient: LinearGradient(
+                          colors: [theme.primaryColor, theme.primaryColor.withOpacity(0.8)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.primaryColor.withOpacity(0.4),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                            spreadRadius: 0,
+                          ),
+                        ],
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        elevation: 4,
-                        shadowColor: theme.primaryColor.withOpacity(0.35),
+                      child: ElevatedButton.icon(
+                        onPressed: _generateReport,
+                        icon: const Icon(Icons.auto_awesome, size: 24),
+                        label: const Text(
+                          'Generate Report',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          shadowColor: Colors.transparent,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                        ),
                       ),
                     ),
 
@@ -506,24 +597,42 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             child: AnimatedBuilder(
               animation: _pulseController,
               builder: (_, __) => Container(
-                height: 120,
-                width: 120,
+                height: 140,
+                width: 140,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _isRecording
-                      ? Colors.red.withOpacity(0.1 + _pulseController.value * 0.15)
-                      : theme.primaryColor.withOpacity(0.1),
+                  gradient: _isRecording
+                      ? LinearGradient(
+                          colors: [
+                            Colors.red.withOpacity(0.15 + _pulseController.value * 0.1),
+                            Colors.red.withOpacity(0.08 + _pulseController.value * 0.05),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : LinearGradient(
+                          colors: [
+                            theme.primaryColor.withOpacity(0.15),
+                            theme.primaryColor.withOpacity(0.08),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                   border: Border.all(
                     color: _isRecording ? Colors.red : theme.primaryColor,
-                    width: 2,
+                    width: 3,
                   ),
-                  boxShadow: _isRecording
-                      ? [BoxShadow(color: Colors.red.withOpacity(0.3), blurRadius: 24 * _pulseController.value, spreadRadius: 8 * _pulseController.value)]
-                      : [],
+                  boxShadow: [
+                    BoxShadow(
+                      color: (_isRecording ? Colors.red : theme.primaryColor).withOpacity(0.3),
+                      blurRadius: _isRecording ? 24 * (1 + _pulseController.value) : 12,
+                      spreadRadius: _isRecording ? 6 * _pulseController.value : 2,
+                    ),
+                  ],
                 ),
                 child: Icon(
                   _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                  size: 52,
+                  size: 60,
                   color: _isRecording ? Colors.red : theme.primaryColor,
                 ),
               ),
@@ -705,7 +814,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
             // Gender override
             DropdownButtonFormField<String?>(
-              value: _enrollGender,
+              initialValue: _enrollGender,
               decoration: InputDecoration(
                 labelText: 'Gender (optional — auto if blank)',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),

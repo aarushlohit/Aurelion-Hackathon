@@ -156,3 +156,29 @@ class EnrollVoiceLiveResponse(BaseModel):
     user_name: str
     voice_id: str
     gender_detected: str
+
+
+# ── Report summary speech ─────────────────────────────────────────────────────
+
+
+class SpeakReportSummaryRequest(BaseModel):
+    report_id: str | None = Field(
+        default=None,
+        description="Load report from persistence store by ID.",
+    )
+    report_text: str | None = Field(
+        default=None,
+        description="Inline report markdown — used when report_id is not provided.",
+    )
+    user_name: str | None = Field(
+        default=None,
+        description="If set, prefer the enrolled clone voice for this user.",
+    )
+    language: str = Field(
+        default="en",
+        description="BCP-47 language code for TTS voice selection (e.g. en, ta, hi, ml).",
+    )
+    gender: Literal["male", "female"] | None = Field(
+        default=None,
+        description="Gender preference for edge-tts voice.",
+    )

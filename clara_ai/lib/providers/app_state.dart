@@ -7,10 +7,17 @@ class AppState extends ChangeNotifier {
   bool _isDarkMode = false;
   UserProfile? _userProfile;
   bool _isFirstLaunch = true;
+  Map<String, dynamic>? _lastPipelineJson;
 
   bool get isDarkMode => _isDarkMode;
   UserProfile? get userProfile => _userProfile;
   bool get isFirstLaunch => _isFirstLaunch;
+  Map<String, dynamic>? get lastPipelineJson => _lastPipelineJson;
+
+  void setLastPipelineJson(Map<String, dynamic> json) {
+    _lastPipelineJson = json;
+    notifyListeners();
+  }
 
   AppState() {
     _loadPreferences();

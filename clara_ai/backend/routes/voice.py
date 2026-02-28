@@ -14,7 +14,7 @@ import os
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import Response
 
-from models.schemas import AudioEchoResponse, SpeakRequest, VoiceStatusResponse
+from models.schemas import AudioEchoResponse, SpeakRequest, SpeakReportSummaryRequest, VoiceStatusResponse
 
 router = APIRouter(tags=["voice"])
 logger = logging.getLogger(__name__)
@@ -149,6 +149,99 @@ async def voice_self_test() -> dict:
             "issues": ["edge-tts not installed: pip install edge-tts"],
         }
 
+
+# ── POST /speak_report_summary ─────────────────────────────────────────────────────
+
+
+@router.post("/speak_report_summary")
+async def speak_report_summary(body: SpeakReportSummaryRequest) -> Response:
+    """Speak a concise summary of an incident report.
+
+    Pipeline:
+      1. Resolve report text (from report_id or inline report_text)
+      2. Extract executive summary + generate 2-3 sentence core summary via LLM
+      3. Compose spoken text: "Here is the report summary. {core_summary}"
+      4. Synthesize with enrolled voice (if user_name) or edge-tts
+      5. Return MP3 audio
+    """
+    import datetime
+    import time
+
+    from services.report_summarizer import summarise_report
+    from services.tts_provider import synthesize_speech
+
+    t0 = time.perf_counter()
+
+    # 1. Resolve report text
+    report_text: str | None = body.report_text
+
+    if body.report_id and not report_text:
+        try:
+            from services.persistence_service import get_report
+            report_data = get_report(body.report_id)
+            if report_data:
+                report_text = report_data.get("report_markdown") or report_data.get("report_text", "")
+        except Exception as exc:
+            logger.warning("Could not load report %s: %s", body.report_id, exc)
+
+    if not report_text or not report_text.strip():
+        raise HTTPException(status_code=400, detail="No report text provided and report_id could not be resolved.")
+
+    # 2. Summarize
+    try:
+        summary_result = summarise_report(report_text)
+    except Exception as exc:
+        logger.error("Summarization failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Summarization failed: {exc}") from exc
+
+    core_summary = summary_result["core_summary"]
+
+    # 3. Compose spoken text
+    spoken_text = f"Here is the report summary. {core_summary}"
+
+    # 4. Synthesize speech
+    gender = (body.gender or "female").lower()
+    try:
+        tts_result = await synthesize_speech(
+            spoken_text,
+            user_name=body.user_name,
+            language=body.language,
+            gender=gender,
+        )
+    except Exception as exc:
+        logger.error("TTS synthesis failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {exc}") from exc
+
+    audio_bytes = tts_result["audio"]
+    total_ms = int((time.perf_counter() - t0) * 1000)
+
+    # 5. Log diagnostics
+    logger.info(
+        "speak_report_summary: summary_provider=%s fallback=%s voice=%s tts=%s "
+        "summary_chars=%d audio_bytes=%d total_ms=%d",
+        summary_result["provider"],
+        summary_result["fallback_used"],
+        tts_result["voice_name"],
+        tts_result["voice_provider"],
+        len(core_summary),
+        len(audio_bytes),
+        total_ms,
+    )
+
+    _speak_state["last_speak_at"] = datetime.datetime.utcnow().isoformat() + "Z"
+    _speak_state["last_speak_voice"] = tts_result["voice_name"]
+
+    return Response(
+        content=audio_bytes,
+        media_type="audio/mpeg",
+        headers={
+            "X-Summary-Provider": summary_result["provider"],
+            "X-Summary-Fallback": str(summary_result["fallback_used"]),
+            "X-Voice-Provider": tts_result["voice_provider"],
+            "X-Voice-Name": tts_result["voice_name"],
+            "X-Total-Latency-Ms": str(total_ms),
+        },
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

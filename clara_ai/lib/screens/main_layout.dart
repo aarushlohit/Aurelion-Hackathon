@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import 'intent_display_screen.dart';
 import 'reports_screen.dart';
 import 'settings_screen.dart';
 
@@ -15,6 +16,7 @@ class _MainLayoutState extends State<MainLayout> {
 
   final List<Widget> _pages = [
     const HomeScreen(),
+    const IntentDisplayScreen(),
     const ReportsScreen(),
     const SettingsScreen(),
   ];
@@ -44,6 +46,11 @@ class _MainLayoutState extends State<MainLayout> {
                   icon: Icon(Icons.home_outlined),
                   selectedIcon: Icon(Icons.home),
                   label: Text('Home'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.data_object_outlined),
+                  selectedIcon: Icon(Icons.data_object),
+                  label: Text('Intent'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.history_outlined),
@@ -91,6 +98,11 @@ class _MainLayoutState extends State<MainLayout> {
                   icon: Icon(Icons.home_outlined),
                   selectedIcon: Icon(Icons.home, color: Color(0xFFFF7A00)),
                   label: 'Home',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.data_object_outlined),
+                  selectedIcon: Icon(Icons.data_object, color: Color(0xFFFF7A00)),
+                  label: 'Intent',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.history_outlined),
